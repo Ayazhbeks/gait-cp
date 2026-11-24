@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Живой скелет: MediaPipe поверх человека</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f4f6f8;
+    --panel: #ffffff;
+    --ink: #1a253c;
+    --mut: #5c687a;
+    --line: #dce2ea;
+    --dash: #b8c2d0;
+    --acc: #c4df4b;
+    --acc-soft: #f2f8d5;
+    --navy: #1a253c;
+    --navy-hover: #263554;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(640px 260px at 0% 0%, rgba(196, 223, 75, 0.18), transparent 70%),
+      radial-gradient(520px 260px at 100% 100%, rgba(196, 223, 75, 0.12), transparent 70%),
+      var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 36px; }
+  h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0 0 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  button, .file {
+    font: inherit;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  button:hover {
+    background: var(--surface);
+    border-color: var(--navy);
+  }
+  .file {
+    border: 1.5px dashed var(--dash);
+    background: var(--panel);
+  }
+  .file:hover {
+    border-color: var(--navy);
+    background: var(--acc-soft);
+  }
+  button.on {
+    background: var(--navy);
+    color: #ffffff;
+    border-color: var(--navy);
+    font-weight: 600;
+  }
+  button.on:hover {
+    background: var(--navy-hover);
+    border-color: var(--navy-hover);
+  }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--acc);
+    outline-offset: 2px;
+  }
+  label.chk {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  label.chk:hover {
+    border-color: var(--line);
+  }
+  label.chk input[type="checkbox"] {
+    accent-color: var(--navy);
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    cursor: pointer;
+  }
+  select {
+    font: inherit;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  #stage {
+    position: relative;
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px dashed var(--dash);
+    border-radius: 14px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+  }
+  #stage.mirror { transform: scaleX(-1); }
+  #v, #c { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #msg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mut);
+    font-weight: 600;
+    text-align: center;
+    padding: 20px;
+    transform: none;
+  }
+  #stage.mirror #msg { transform: scaleX(-1); }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--acc);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stat b {
+    display: block;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .stat span { color: var(--mut); font-size: 13px; }
+  #warn {
+    color: var(--warn);
+    min-height: 22px;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  #warn:not(:empty) {
+    background: var(--warn-bg);
+    border-left: 4px solid #f59e0b;
+    padding: 8px 12px;
+    border-radius: 0 8px 8px 0;
+  }
+  p.note {
+    color: var(--ink);
+    background: var(--surface);
+    border-left: 4px solid var(--acc);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    font-size: 13px;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Скелет, руки и лицо поверх человека</h1>
+  <div class="bar">
+    <button id="cam">Включить камеру</button>
+    <label class="file">Открыть видео<input id="file" type="file" accept="video/*" hidden></label>
+    <label class="chk"><input type="checkbox" id="oPose" checked>Тело</label>
+    <label class="chk"><input type="checkbox" id="oHand" checked>Руки</label>
+    <label class="chk"><input type="checkbox" id="oFace" checked>Лицо</label>
+    <label class="chk"><input type="checkbox" id="oBlack">Только скелет на чёрном фоне</label>
+    <label class="chk"><input type="checkbox" id="oMirror" checked>Зеркало (для камеры)</label>
+    <label class="chk">Нога для углов
+      <select id="side"><option value="LEFT">левая</option><option value="RIGHT">правая</option></select></label>
+  </div>
+
+  <div id="stage" class="mirror">
+    <video id="v" playsinline muted></video>
+    <canvas id="c"></canvas>
+    <div id="msg">Загружаю модели MediaPipe…</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="aHip">—</b><span>Угол бедра, ° (сгибание +, разгибание −)</span></div>
+    <div class="stat"><b id="aKnee">—</b><span>Сгибание колена, °</span></div>
+    <div class="stat"><b id="fps">—</b><span>Кадров в секунду обработки</span></div>
+  </div>
+  <div id="warn"></div>
+  <p class="note">Углы считаются по двумерному виду. Для ходьбы ребёнок должен идти боком к камере, ноги видны целиком. Это ориентир для врача, а не замена лабораторной кинематики.</p>
+</main>
+
+<script type="module">
+import { FilesetResolver, PoseLandmarker, HandLandmarker, FaceLandmarker, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
+
+const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm";
+const MODELS = {
+  pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+  hand: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+  face: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+};
+
+const $ = id => document.getElementById(id);
+const v = $("v"), c = $("c"), ctx = c.getContext("2d"), stage = $("stage"), msg = $("msg");
+let pose, hand, face, running = false, last = -1, ema = { hip: null, knee: null }, frames = 0, t0 = performance.now();
+
+async function make(kind, vision) {
+  const base = d => ({ modelAssetPath: MODELS[kind], delegate: d });
+  const opts = d => kind === "pose" ? { baseOptions: base(d), runningMode: "VIDEO", numPoses: 1 }
+                  : kind === "hand" ? { baseOptions: base(d), runningMode: "VIDEO", numHands: 2 }
+                  : { baseOptions: base(d), runningMode: "VIDEO", numFaces: 1 };
+  const cls = { pose: PoseLandmarker, hand: HandLandmarker, face: FaceLandmarker }[kind];
+  try { return await cls.createFromOptions(vision, opts("GPU")); }
+  catch { return await cls.createFromOptions(vision, opts("CPU")); }
+}
+
+(async () => {
+  try {
+    const vision = await FilesetResolver.forVisionTasks(WASM);
+    [pose, hand, face] = await Promise.all([make("pose", vision), make("hand", vision), make("face", vision)]);
+    msg.textContent = "Готово. Включите камеру или откройте видео.";
+  } catch (e) {
+    msg.textContent = "Не удалось загрузить модели: " + e.message + ". Нужен интернет и запуск через http://localhost, а не двойным кликом по файлу.";
+  }
+})();
+
+// ---- источники ----
+$("cam").onclick = async () => {
+  if (!pose) return;
+  if (running && v.srcObject) { stop(); return; }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720, facingMode: "user" }, audio: false });
+    v.srcObject = s; v.loop = false; await v.play();
+    stage.classList.toggle("mirror", $("oMirror").checked);
+    start(); $("cam").textContent = "Выключить камеру"; $("cam").classList.add("on");
+  } catch (e) { msg.style.display = ""; msg.textContent = "Нет доступа к камере: " + e.message; }
+};
+$("file").onchange = async e => {
+  const f = e.target.files[0]; if (!f || !pose) return;
+  stop(); v.src = URL.createObjectURL(f); v.loop = true; await v.play();
+  stage.classList.remove("mirror"); $("oMirror").checked = false; start();
+};
+$("oMirror").onchange = () => stage.classList.toggle("mirror", $("oMirror").checked);
+function start() { running = true; msg.style.display = "none"; last = -1; requestAnimationFrame(loop); }
+function stop() {
+  running = false;
+  if (v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); v.srcObject = null; }
+  v.removeAttribute("src"); v.load(); ctx.clearRect(0, 0, c.width, c.height);
+  $("cam").textContent = "Включить камеру"; $("cam").classList.remove("on");
+  msg.style.display = ""; msg.textContent = "Источник остановлен.";
+}
+
+// ---- углы (та же математика, что в video_gait.py) ----
+function angles(lm, w, h, side) {
+  const I = side === "LEFT" ? [11, 23, 25, 27] : [12, 24, 26, 28];
+  const [s, hp, k, a] = I.map(i => ({ x: lm[i].x * w, y: lm[i].y * h, vis: lm[i].visibility ?? 1 }));
+  const facing = Math.sign(lm[0].x * w - hp.x) || 1;
+  const ax = hp.x - s.x, ay = hp.y - s.y, bx = k.x - hp.x, by = k.y - hp.y;
+  const hip = -Math.atan2(ax * by - ay * bx, ax * bx + ay * by) * 180 / Math.PI * facing;
+  const ux = hp.x - k.x, uy = hp.y - k.y, vx = a.x - k.x, vy = a.y - k.y;
+  const cs = (ux * vx + uy * vy) / (Math.hypot(ux, uy) * Math.hypot(vx, vy) + 1e-9);
+  const knee = 180 - Math.acos(Math.max(-1, Math.min(1, cs))) * 180 / Math.PI;
+  return { hip, knee, vis: Math.min(s.vis, hp.vis, k.vis, a.vis) };
+}
+const smooth = (key, x) => (ema[key] = ema[key] == null ? x : 0.7 * ema[key] + 0.3 * x);
+
+// ---- рисование ----
+const BODY = PoseLandmarker.POSE_CONNECTIONS.filter(p => p.start >= 11 && p.end >= 11);
+function loop() {
+  if (!running) return;
+  if (v.readyState >= 2 && v.currentTime !== last && v.videoWidth) {
+    last = v.currentTime;
+    const w = v.videoWidth, h = v.videoHeight;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; stage.style.aspectRatio = w + " / " + h; }
+    const ts = performance.now();
+    ctx.clearRect(0, 0, w, h);
+    if ($("oBlack").checked) { ctx.fillStyle = "#0e1525"; ctx.fillRect(0, 0, w, h); }
+    const du = new DrawingUtils(ctx), lw = Math.max(2, w / 400);
+
+    if ($("oFace").checked) {
+      const fr = face.detectForVideo(v, ts);
+      for (const lm of fr.faceLandmarks) {
+        for (const set of [FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                           FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, FaceLandmarker.FACE_LANDMARKS_LIPS])
+          du.drawConnectors(lm, set, { color: "#7dd3fc", lineWidth: lw * 0.6 });
+      }
+    }
+    if ($("oHand").checked) {
+      const hr = hand.detectForVideo(v, ts);
+      for (const lm of hr.landmarks) {
+        du.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: "#c4df4b", lineWidth: lw });
+        du.drawLandmarks(lm, { color: "#1a253c", fillColor: "#c4df4b", radius: lw * 0.9 });
+      }
+    }
+    const pr = pose.detectForVideo(v, ts);
+    if (pr.landmarks.length) {
+      const lm = pr.landmarks[0];
+      if ($("oPose").checked) {
+        du.drawConnectors(lm, BODY, { color: "#e8edf4", lineWidth: lw });
+        du.drawLandmarks(lm.filter((_, i) => i >= 11), { color: "#1a253c", fillColor: "#ffffff", radius: lw });
+      }
+      const a = angles(lm, w, h, $("side").value);
+      $("aHip").textContent = smooth("hip", a.hip).toFixed(0) + "°";
+      $("aKnee").textContent = smooth("knee", a.knee).toFixed(0) + "°";
+      $("warn").textContent = a.vis < 0.5 ? "Нога видна не полностью, углы могут быть неточными. Отодвиньте камеру или повернитесь боком." : "";
+    } else {
+      $("aHip").textContent = $("aKnee").textContent = "—";
+      $("warn").textContent = "Человек не найден в кадре.";
+    }
+    frames++;
+    const dt = performance.now() - t0;
+    if (dt > 1000) { $("fps").textContent = (frames * 1000 / dt).toFixed(0); frames = 0; t0 = performance.now(); }
+  }
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
